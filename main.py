@@ -1,13 +1,15 @@
+from settings import BOT_TOKEN
 import os
 import logging
 import re
 import random
 import string
+import subprocess
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
+from telegram.ext import Updater, Filters, CommandHandler, MessageHandler, CallbackContext, ConversationHandler
 
 # Установите ваш токен, полученный от @BotFather
-TOKEN = 'YOUR_BOT_TOKEN'
+TOKEN = BOT_TOKEN
 
 # Настройка логгирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -100,34 +102,36 @@ def generate_password(length=8):
     password = ''.join(random.choice(characters) for _ in range(length))
     return password
 
-# Добавьте здесь свои обработчики команд и функции для управления доступами
-
 def main() -> None:
-    updater = Updater(TOKEN)
-
+    updater = Updater(token=TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
-    # Обработчики команд
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("show_users", show_ftp_users))
     dispatcher.add_handler(CommandHandler("show_tree", show_ftp_tree))
     dispatcher.add_handler(CommandHandler("show_permissions", show_user_permissions))
 
-    # Добавление ConversationHandler для создания нового пользователя
+    new_folder_handler = ConversationHandler(
+        entry_points=[CommandHandler('new_folder', start_new_folder)],
+        states={
+            NEW_FOLDER_NAME: [MessageHandler(Filters.text & ~Filters.command, create_new_folder)]
+        },
+        fallbacks=[],
+    )
+    dispatcher.add_handler(new_folder_handler)
+
     new_user_handler = ConversationHandler(
         entry_points=[CommandHandler('new_user', start_new_user)],
         states={
-            NEW_USER_NAME[0]: [MessageHandler(Filters.text & ~Filters.command, validate_user_name)],
-            NEW_USER_NAME[1]: [MessageHandler(Filters.text & ~Filters.command, select_folder_id)]
+            NEW_USER_NAME[0]: [MessageHandler(Filters.text & ~Filters.command, validate_user_name, pass_user_data=True)],
+            NEW_USER_NAME[1]: [MessageHandler(Filters.text & ~Filters.command, select_folder_id, pass_user_data=True)]
         },
         fallbacks=[],
     )
     dispatcher.add_handler(new_user_handler)
 
-    # Запуск бота
     updater.start_polling()
-
     updater.idle()
 
 if __name__ == '__main__':
